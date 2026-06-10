@@ -1,0 +1,60 @@
+{
+  "allowed_roots": [
+    "C:/hwpmcp",
+    "C:/OfficeMCP"
+  ],
+  "blocked_globs": [
+    "**/.env",
+    "**/.env.*",
+    "**/*id_rsa*",
+    "**/*.pem",
+    "**/*.key",
+    "**/AppData/**",
+    "C:/Windows/**",
+    "C:/Program Files/**",
+    "C:/Program Files (x86)/**"
+  ],
+  "ignored_dirs": [
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "allowed_commands": [
+    "python -m compileall",
+    "python -m pytest",
+    "pytest",
+    "npm test",
+    "npm run lint",
+    "git status",
+    "git diff",
+    "git log",
+    "pip install -r requirements.txt"
+  ],
+  "blocked_command_fragments": [
+    "del /s",
+    "rmdir /s",
+    "format ",
+    "shutdown",
+    "reg delete",
+    "rm -rf",
+    "curl ",
+    "wget ",
+    "invoke-webrequest",
+    "iwr ",
+    "start-process powershell",
+    "powershell -enc",
+    "certutil "
+  ],
+  "backup_dir": "local_artifacts/backups",
+  "output_dir": "local_artifacts/changes",
+  "max_file_bytes": 2000000,
+  "default_encoding": "utf-8"
+}

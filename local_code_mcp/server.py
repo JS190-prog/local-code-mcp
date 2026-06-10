@@ -6,7 +6,16 @@ from typing import Any
 from .command_tools import run_command_safely, run_compile_check, run_pytest
 from .config import load_config, write_example_config
 from .filesystem_tools import get_file_info, list_project_files, read_file, search_files, search_text, write_file_safe
-from .git_tools import git_changed_files, git_create_branch, git_diff, git_restore_file, git_status
+from .git_tools import (
+    git_add,
+    git_changed_files,
+    git_commit,
+    git_commit_files,
+    git_create_branch,
+    git_diff,
+    git_restore_file,
+    git_status,
+)
 from .package_tools import create_change_zip, create_full_snapshot_zip, generate_changelog_md
 from .patch_tools import replace_in_file, restore_from_backup
 from .project_tools import detect_project_type, summarize_project
@@ -51,9 +60,31 @@ def create_mcp_server() -> Any:
         return read_file(path, config_path=config_path)
 
     @mcp.tool()
-    def mcp_write_file_safe(path: str, text: str, encoding: str = "utf-8", project_root: str | None = None, config_path: str | None = None) -> dict[str, Any]:
-        """Write a text file after creating a backup when the file already exists."""
-        return write_file_safe(path, text=text, encoding=encoding, project_root=project_root, config_path=config_path)
+    def mcp_write_file_safe(
+        path: str,
+        text: str | None = None,
+        content: str | None = None,
+        body: str | None = None,
+        encoding: str = "utf-8",
+        project_root: str | None = None,
+        config_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Write a text file after creating a backup when the file already exists.
+
+        File content may be provided with text, content, or body.
+        The aliases make this tool compatible with common file-writing schemas
+        while preserving the existing text parameter.
+        """
+        resolved_text = text if text is not None else content if content is not None else body
+        if resolved_text is None:
+            return {
+                "status": "error",
+                "error_code": "missing_file_text",
+                "message": "File content is missing. Provide one of: text, content, or body.",
+                "recoverable": True,
+                "suggestion": "Example: {\"path\": \"C:/path/file.md\", \"text\": \"file content\"}",
+            }
+        return write_file_safe(path, text=resolved_text, encoding=encoding, project_root=project_root, config_path=config_path)
 
     @mcp.tool()
     def mcp_search_files(project_path: str, pattern: str, max_results: int = 100, config_path: str | None = None) -> dict[str, Any]:
@@ -110,6 +141,23 @@ def create_mcp_server() -> Any:
     def mcp_git_changed_files(project_path: str, config_path: str | None = None) -> dict[str, Any]:
         """Return changed files from git status --porcelain."""
         return git_changed_files(project_path, config_path=config_path)
+
+    @mcp.tool()
+    def mcp_git_add(project_path: str, files_json: str, config_path: str | None = None) -> dict[str, Any]:
+        """Stage selected relative file paths with git add."""
+        files = json.loads(files_json)
+        return git_add(project_path, files=files, config_path=config_path)
+
+    @mcp.tool()
+    def mcp_git_commit(project_path: str, message: str, config_path: str | None = None) -> dict[str, Any]:
+        """Create a git commit from already staged changes."""
+        return git_commit(project_path, message=message, config_path=config_path)
+
+    @mcp.tool()
+    def mcp_git_commit_files(project_path: str, files_json: str, message: str, config_path: str | None = None) -> dict[str, Any]:
+        """Stage selected relative file paths and create one git commit."""
+        files = json.loads(files_json)
+        return git_commit_files(project_path, files=files, message=message, config_path=config_path)
 
     @mcp.tool()
     def mcp_git_create_branch(project_path: str, branch_name: str, config_path: str | None = None) -> dict[str, Any]:

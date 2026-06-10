@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import time
 import zipfile
 from pathlib import Path
@@ -44,38 +43,6 @@ def _table(rows: list[list[str]], headers: list[str]) -> str:
     return "\n".join(out)
 
 
-def _parse_json_list(value: list[Any] | str | None) -> list[Any]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-            return parsed if isinstance(parsed, list) else [parsed]
-        except json.JSONDecodeError:
-            return [value]
-    return [value]
-
-
-def _test_result_row(result: Any) -> list[str]:
-    if not isinstance(result, dict):
-        return ["검증", "unknown", str(result)]
-    name = (
-        result.get("name") or result.get("check") or result.get("command") or
-        result.get("tool") or result.get("label") or "검증"
-    )
-    status = (
-        result.get("status") or result.get("result") or result.get("outcome") or
-        result.get("passed") or "unknown"
-    )
-    detail = (
-        result.get("detail") or result.get("message") or result.get("stderr") or
-        result.get("stdout") or result.get("error") or result.get("returncode") or ""
-    )
-    return [str(name), str(status), str(detail)]
-
-
 def generate_changelog_md(
     project_path: str,
     output_path: str | None = None,
@@ -89,11 +56,23 @@ def generate_changelog_md(
 ) -> dict[str, Any]:
     cfg = load_config(config_path)
     root = ensure_safe_project_root(project_path, cfg)
-    changed_files = _parse_json_list(changed_files)
-    test_results = _parse_json_list(test_results)
+    if isinstance(changed_files, str):
+        try:
+            changed_files = json.loads(changed_files)
+        except json.JSONDecodeError:
+            changed_files = [changed_files]
+    changed_files = changed_files or []
+    if isinstance(test_results, str):
+        try:
+            test_results = json.loads(test_results)
+        except json.JSONDecodeError:
+            test_results = [{"name": "검증", "status": "unknown", "detail": test_results}]
+    test_results = test_results or []
 
-    changed_rows = [[str(f), "수정/생성", "작업 결과 파일"] for f in changed_files] or [["-", "-", "변경 파일 정보 없음"]]
-    test_rows = [_test_result_row(r) for r in test_results] or [["-", "-", "검증 결과 없음"]]
+    changed_rows = [[f, "수정/생성", "작업 결과 파일"] for f in changed_files] or [["-", "-", "변경 파일 정보 없음"]]
+    test_rows = [[str(r.get("name", r.get("command", "검증"))), str(r.get("status", "unknown")), str(r.get("detail", r.get("returncode", "")))] for r in test_results]
+    if not test_rows:
+        test_rows = [["-", "-", "검증 결과 없음"]]
 
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     content = CHANGELOG_TEMPLATE.format(
@@ -116,41 +95,6 @@ def generate_changelog_md(
     return {"status": "success", "path": str(out), "bytes": out.stat().st_size, "content": content}
 
 
-def _git_changed_files(root: Path) -> list[str]:
-    try:
-        proc = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-    except Exception:
-        return []
-    if proc.returncode != 0:
-        return []
-    files: list[str] = []
-    for line in proc.stdout.splitlines():
-        if not line.strip():
-            continue
-        rel = line[3:].strip()
-        if rel:
-            files.append(rel)
-    return files
-
-
-def _resolve_include_file(root: Path, rel_or_path: str, cfg) -> Path | None:
-    raw = Path(rel_or_path)
-    p = raw if raw.is_absolute() else root / raw
-    try:
-        safe = ensure_safe_path(p, cfg)
-    except Exception:
-        return None
-    if safe.exists() and safe.is_file():
-        return safe
-    return None
-
-
 def create_change_zip(
     project_path: str,
     output_zip: str | None = None,
@@ -160,11 +104,18 @@ def create_change_zip(
 ) -> dict[str, Any]:
     cfg = load_config(config_path)
     root = ensure_safe_project_root(project_path, cfg)
-    include_files = [str(x) for x in _parse_json_list(include_files)]
-    include_patterns = [str(x) for x in _parse_json_list(include_patterns)]
-
-    if not include_files and not include_patterns:
-        include_files = _git_changed_files(root)
+    if isinstance(include_files, str):
+        try:
+            include_files = json.loads(include_files)
+        except json.JSONDecodeError:
+            include_files = [include_files]
+    if isinstance(include_patterns, str):
+        try:
+            include_patterns = json.loads(include_patterns)
+        except json.JSONDecodeError:
+            include_patterns = [include_patterns]
+    include_files = include_files or []
+    include_patterns = include_patterns or []
 
     if output_zip:
         zip_path = ensure_safe_path(output_zip, cfg)
@@ -173,23 +124,18 @@ def create_change_zip(
     zip_path.parent.mkdir(parents=True, exist_ok=True)
 
     files: set[Path] = set()
-    skipped: list[str] = []
-    for item in include_files:
-        p = _resolve_include_file(root, item, cfg)
-        if p is None:
-            skipped.append(item)
-        else:
+    for rel in include_files:
+        p = root / rel
+        ensure_safe_path(p, cfg)
+        if p.exists() and p.is_file():
             files.add(p)
     for pattern in include_patterns:
         for p in root.glob(pattern):
-            try:
-                safe = ensure_safe_path(p, cfg)
-            except Exception:
-                skipped.append(str(p))
-                continue
-            if safe.is_file():
-                files.add(safe)
+            if p.is_file():
+                ensure_safe_path(p, cfg)
+                files.add(p)
 
+    # Always include generated markdown reports in output_dir if present.
     reports_dir = root / cfg.output_dir
     if reports_dir.exists():
         for p in reports_dir.glob("*.md"):
@@ -198,18 +144,9 @@ def create_change_zip(
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for p in sorted(files):
-            if p == zip_path:
-                continue
             arcname = relative_display(p, root)
             zf.write(p, arcname)
-    return {
-        "status": "success",
-        "zip_path": str(zip_path),
-        "file_count": len(files),
-        "size": zip_path.stat().st_size,
-        "skipped": skipped,
-        "included_by_default": not bool(include_files or include_patterns),
-    }
+    return {"status": "success", "zip_path": str(zip_path), "file_count": len(files), "size": zip_path.stat().st_size}
 
 
 def create_full_snapshot_zip(project_path: str, output_zip: str | None = None, config_path: str | None = None) -> dict[str, Any]:

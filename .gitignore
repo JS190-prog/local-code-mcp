@@ -6,3 +6,4 @@ __pycache__/
 local_artifacts/
 # 로컬 allowed_roots 설정은 비공개 (config.example.json만 추적)
 config.json
+*.log

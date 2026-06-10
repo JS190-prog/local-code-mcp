@@ -1,0 +1,13 @@
+{
+  "allowed_commands": [
+    "python -m compileall",
+    "python -m pytest",
+    "pytest",
+    "npm test",
+    "npm run lint",
+    "git status",
+    "git diff",
+    "git log",
+    "pip install -r requirements.txt"
+  ]
+}
