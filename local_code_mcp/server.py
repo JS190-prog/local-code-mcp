@@ -12,6 +12,7 @@ from .git_tools import (
     git_commit,
     git_commit_files,
     git_create_branch,
+    git_diagnose,
     git_diff,
     git_restore_file,
     git_status,
@@ -131,6 +132,11 @@ def create_mcp_server() -> Any:
     def mcp_git_status(project_path: str, config_path: str | None = None) -> dict[str, Any]:
         """Run git status --short in an allowed project root."""
         return git_status(project_path, config_path=config_path)
+
+    @mcp.tool()
+    def mcp_git_diagnose(project_path: str, config_path: str | None = None) -> dict[str, Any]:
+        """Diagnose Git execution from inside the MCP server process."""
+        return git_diagnose(project_path, config_path=config_path)
 
     @mcp.tool()
     def mcp_git_diff(project_path: str, staged: bool = False, config_path: str | None = None) -> dict[str, Any]:

@@ -69,6 +69,7 @@ class LocalCodeConfig:
     output_dir: str = "local_artifacts/changes"
     max_file_bytes: int = 2_000_000
     default_encoding: str = "utf-8"
+    git_executable: str = "git"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LocalCodeConfig":
@@ -89,6 +90,7 @@ class LocalCodeConfig:
             "output_dir": self.output_dir,
             "max_file_bytes": self.max_file_bytes,
             "default_encoding": self.default_encoding,
+            "git_executable": self.git_executable,
         }
 
 

@@ -1,0 +1,12 @@
+interface:
+  display_name: 코드변경
+  short_description: 코드 압축파일을 수정하고 변경 코드와 changelog를 zip으로 패키징합니다.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
